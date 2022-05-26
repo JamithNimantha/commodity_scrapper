@@ -60,9 +60,9 @@ class CommodityScrapper:
 
         data_arr = []
         for panel in panels:
-            if is_valid_panel(panel):
-                df = self.get_panel_data(panel)
-                data_arr.extend(df)
+            # if is_valid_panel(panel):
+            df = self.get_panel_data(panel)
+            data_arr.extend(df)
         return data_arr
 
     def get_panel_data(self, panel):
@@ -95,7 +95,8 @@ class CommodityScrapper:
         else:
             df['currency'] = txt
             df['quantity'] = "NULL"
-
+        if df['currency'].__contains__('Points'):
+            df['currency'] = 'POINT'
         df['data_date'] = get_date(tds)
         return df
 
