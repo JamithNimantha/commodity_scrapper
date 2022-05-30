@@ -40,8 +40,8 @@ class CommodityScrapper:
     def __init__(self):
         self.conn = None
         self.init_db()
-        # data_arr = self.scrap_commodities()
-        # self.upsert_data(data_arr)
+        data_arr = self.scrap_commodities()
+        self.upsert_data(data_arr)
         data_arr = self.scrap_commodities_baltic()
         self.upsert_data(data_arr)
 
@@ -114,7 +114,7 @@ class CommodityScrapper:
             df['quantity'] = txt[index + 1:]
         else:
             df['currency'] = txt
-            df['quantity'] = "NULL"
+            df['quantity'] = None
         if df['currency'].__contains__('Points'):
             df['currency'] = 'Index'
             df['quantity'] = 'Points'
@@ -134,7 +134,7 @@ class CommodityScrapper:
         df['month_percent'] = self.get_float(trim(tds[5].text).replace("%", ""))
         df['yoy_percent'] = self.get_float(trim(tds[6].text).replace("%", ""))
         df['currency'] = 'Index'
-        df['quantity'] = 'NULL'
+        df['quantity'] = None
         df['data_date'] = get_date(tds)
         return df
 
