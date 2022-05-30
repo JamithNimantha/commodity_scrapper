@@ -84,7 +84,8 @@ class CommodityScrapper:
         data_arr = []
         for row in rows:
             df = self.get_row_value(row)
-            data_arr.append(df)
+            if df is not None:
+                data_arr.append(df)
         return data_arr
 
     def get_panel_data_baltic(self, panel):
@@ -92,12 +93,15 @@ class CommodityScrapper:
         data_arr = []
         for row in rows:
             df = self.get_row_value_baltic(row)
-            data_arr.append(df)
+            if df is not None:
+                data_arr.append(df)
         return data_arr
 
     def get_row_value(self, row):
         df = {}
         tds = row.findAll('td')
+        if trim(tds[0].a.text).__contains__('Baltic'):
+            return None
         df['commodity_name'] = trim(tds[0].a.text)
         df['update_date'] = date.today()
         df['update_time'] = datetime.now().time()
@@ -124,6 +128,8 @@ class CommodityScrapper:
     def get_row_value_baltic(self, row):
         df = {}
         tds = row.findAll('td')
+        if not trim(tds[0].a.text).__contains__('Baltic'):
+            return None
         df['commodity_name'] = trim(tds[0].a.text)
         df['update_date'] = date.today()
         df['update_time'] = datetime.now().time()
