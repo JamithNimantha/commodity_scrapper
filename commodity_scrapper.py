@@ -29,7 +29,7 @@ def get_date(tds):
 def is_valid_panel(panel):
     header = panel.find('thead')
     panel_type = trim(header.tr.th.text)
-    if panel_type == 'Index':
+    if panel_type in ['', None]:
         return False
     else:
         return True
@@ -40,7 +40,9 @@ class CommodityScrapper:
     def __init__(self):
         self.conn = None
         self.init_db()
-        data_arr = self.scrap_commodities()
+        # data_arr = self.scrap_commodities()
+        # self.upsert_data(data_arr)
+        data_arr = self.scrap_commodities_baltic()
         self.upsert_data(data_arr)
 
     def init_db(self):
@@ -62,7 +64,17 @@ class CommodityScrapper:
         for panel in panels:
             # if is_valid_panel(panel):
             df = self.get_panel_data(panel)
+
             data_arr.extend(df)
+        return data_arr
+
+    def scrap_commodities_baltic(self):
+        html = requests.get("https://tradingeconomics.com/commodity/baltic", headers=headers)
+        soup = BeautifulSoup(html.text, "lxml")
+        panel = soup.find("table", {'class': 'table table-hover sortable-theme-minimal table-heatmap'})
+        panel.find('thead').extract()
+        data_arr = self.get_panel_data_baltic(panel)
+
         return data_arr
 
     def get_panel_data(self, panel):
@@ -72,6 +84,14 @@ class CommodityScrapper:
         data_arr = []
         for row in rows:
             df = self.get_row_value(row)
+            data_arr.append(df)
+        return data_arr
+
+    def get_panel_data_baltic(self, panel):
+        rows = panel.findAll('tr')
+        data_arr = []
+        for row in rows:
+            df = self.get_row_value_baltic(row)
             data_arr.append(df)
         return data_arr
 
@@ -96,7 +116,25 @@ class CommodityScrapper:
             df['currency'] = txt
             df['quantity'] = "NULL"
         if df['currency'].__contains__('Points'):
-            df['currency'] = 'POINT'
+            df['currency'] = 'Index'
+            df['quantity'] = 'Points'
+        df['data_date'] = get_date(tds)
+        return df
+
+    def get_row_value_baltic(self, row):
+        df = {}
+        tds = row.findAll('td')
+        df['commodity_name'] = trim(tds[0].a.text)
+        df['update_date'] = date.today()
+        df['update_time'] = datetime.now().time()
+        df['price'] = self.get_float(trim(tds[1].text))
+        df['change'] = self.get_float(trim(tds[3].text))
+        df['day_percent'] = self.get_float(trim(tds[4].text).replace("%", ""))
+        df['week_percent'] = 0
+        df['month_percent'] = self.get_float(trim(tds[5].text).replace("%", ""))
+        df['yoy_percent'] = self.get_float(trim(tds[6].text).replace("%", ""))
+        df['currency'] = 'Index'
+        df['quantity'] = 'NULL'
         df['data_date'] = get_date(tds)
         return df
 
