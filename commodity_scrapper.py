@@ -1,11 +1,11 @@
+import json
 import os
+import re
+from datetime import datetime, date, timedelta
 
+import psycopg2
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime, date
-import psycopg2
-import json
-import re
 
 DATE_FORMATE = '%A %B %d %Y'
 TIME_FORMATE = '%H:%M %p'
@@ -44,6 +44,8 @@ class CommodityScrapper:
         self.upsert_data(data_arr)
         data_arr = self.scrap_commodities_baltic()
         self.upsert_data(data_arr)
+        data_arr = self.scrap_commodities_baltic_api()
+        self.upsert_data(data_arr)
 
     def init_db(self):
         env = json.loads(open(f"Data{os.sep}Creadentals.json", "r", encoding='utf-8').read())
@@ -77,6 +79,16 @@ class CommodityScrapper:
 
         return data_arr
 
+    def scrap_commodities_baltic_api(self):
+        html = requests.get("https://finance-api.seekingalpha.com/real_time_quotes?sa_ids=601301")
+        json_ = html.json()
+        data_arr = []
+        for record in json_['real_time_quotes']:
+            df = self.get_row_value_baltic_api(record)
+            if not self.is_exists(df):
+                data_arr.append(df)
+        return data_arr
+
     def get_panel_data(self, panel):
 
         body = panel.find('tbody')
@@ -85,7 +97,8 @@ class CommodityScrapper:
         for row in rows:
             df = self.get_row_value(row)
             if df is not None:
-                data_arr.append(df)
+                if not self.is_exists(df):
+                    data_arr.append(df)
         return data_arr
 
     def get_panel_data_baltic(self, panel):
@@ -94,7 +107,8 @@ class CommodityScrapper:
         for row in rows:
             df = self.get_row_value_baltic(row)
             if df is not None:
-                data_arr.append(df)
+                if not self.is_exists(df):
+                    data_arr.append(df)
         return data_arr
 
     def get_row_value(self, row):
@@ -123,6 +137,8 @@ class CommodityScrapper:
             df['currency'] = 'Index'
             df['quantity'] = 'Points'
         df['data_date'] = get_date(tds)
+        df['last_price'] = None
+        df['last_percent'] = None
         return df
 
     def get_row_value_baltic(self, row):
@@ -142,7 +158,105 @@ class CommodityScrapper:
         df['currency'] = 'Index'
         df['quantity'] = None
         df['data_date'] = get_date(tds)
+        df['last_price'] = None
         return df
+
+    def get_row_value_baltic_api(self, row):
+        today = datetime.today()
+        df = {}
+        df['commodity_name'] = 'Baltic Dry R'
+
+        week_close = self.get_price_by_updated_date(today - timedelta(days=7), df['commodity_name'])
+        month_close = self.get_price_by_updated_date(today - timedelta(days=30), df['commodity_name'])
+        year_close = self.get_price_by_updated_date(today - timedelta(days=365), df['commodity_name'])
+
+        df['update_date'] = date.today()
+        df['update_time'] = datetime.now().time()
+        df['price'] = row['close']
+        df['last_price'] = row['last']
+        df['last_percent'] = (df['price'] - df['last_price']) / df['last_price']
+        df['change'] = df['price'] - row['last']
+        df['day_percent'] = round((df['price'] - df['last_price']) / df['last_price'], 4)
+
+        if week_close is not None:
+            df['week_percent'] = (week_close - week_close) / week_close
+        else:
+            df['week_percent'] = None
+
+        if month_close is not None:
+            df['month_percent'] = (month_close - month_close) / month_close
+        else:
+            df['month_percent'] = None
+
+        if year_close is not None:
+            df['yoy_percent'] = (year_close - year_close) / year_close
+        else:
+            df['yoy_percent'] = None
+
+        df['currency'] = 'Index'
+        df['quantity'] = None
+        df['data_date'] = row['updated_at']
+        return df
+
+    def get_price_by_updated_date(self, update_date, name):
+        update_date = update_date.strftime('%Y-%m-%d')
+        sql = "select price from commodities where commodity_name = '{0}' and update_date = '{1}';" \
+            .format(name, update_date)
+        curr = self.conn.cursor()
+        try:
+            curr.execute(sql)
+            rst = curr.fetchone()
+            if rst is not None:
+                return rst[0]
+        except Exception as e:
+            print("error found in get_price_by_updated_date()")
+            print(e)
+        return None
+
+    def is_exists(self, df) -> bool:
+        """
+
+        :rtype: bool
+        """
+        sql = """select *
+                from commodities
+                where commodity_name = '{0}'
+                  and price = {1}
+                  and change = {2}
+                  and day_percent = {3}
+                  and week_percent = {4}
+                  and month_percent = {5}
+                  and yoy_percent = {6}
+                  and currency = '{7}'
+                  and quantity = '{8}'
+                  and data_date = '{9}'
+                  and last_price = '{10}'
+                  and update_date = '{11}';
+                  """.format(
+            df['commodity_name'],
+            df['price'],
+            df['change'],
+            df['day_percent'],
+            df['week_percent'],
+            df['month_percent'],
+            df['yoy_percent'],
+            df['currency'],
+            df['quantity'],
+            df['data_date'],
+            df['last_price'],
+            df['update_date']
+        )
+        sql = sql.replace("= 'None'", "is null").replace('= None', 'is null')
+        curr = self.conn.cursor()
+        try:
+            curr.execute(sql)
+            rst = curr.fetchone()
+            if rst is not None:
+                return len(rst) > 0
+        except Exception as e:
+            print("error found in is_exists()")
+            print(e)
+        return False
 
     def upsert_data(self, data_arr):
         sql = """
@@ -158,7 +272,8 @@ class CommodityScrapper:
                 yoy_percent,
                 currency,
                 quantity,
-                data_date
+                data_date,
+                last_price
             )
             values (
                 %(commodity_name)s,
@@ -172,7 +287,8 @@ class CommodityScrapper:
                 %(yoy_percent)s,
                 %(currency)s,
                 %(quantity)s,
-                %(data_date)s
+                %(data_date)s,
+                %(last_price)s
             )
             on conflict (commodity_name, update_date) do update
             set
