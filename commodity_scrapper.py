@@ -173,7 +173,7 @@ class CommodityScrapper:
         df['update_date'] = date.today()
         df['update_time'] = datetime.now().time()
         df['price'] = row['close']
-        df['last_price'] = row['last']
+        df['last_price'] = row['prev_close']
         df['last_percent'] = (df['price'] - df['last_price']) / df['last_price']
         df['change'] = df['price'] - row['last']
         df['day_percent'] = round((df['price'] - df['last_price']) / df['last_price'], 4)
