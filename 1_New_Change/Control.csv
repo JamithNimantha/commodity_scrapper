@@ -1,9 +1,9 @@
 Value Name,Value
 Wait till for starting the Scrapping of EIA Website,5:48 PM
-Email SMTP Server Name / IP Address,smtp.mailtrap.io
-Email SMTP Server Port,587
-Email SMTP ID,a230265b429910
-Email SMTP Password,9cc520e6bcf4b7
+Email SMTP Server Name / IP Address,192.168.68.204
+Email SMTP Server Port,25
+Email SMTP ID,send@vj.loc
+Email SMTP Password,123456
 Require logon using Secure Password Authentication (SPA),No
 Use following type of Encrypted Connection,None
-Email TO Email ID,a230265b429910
+Email TO Email ID,rec@vj.loc

@@ -2,10 +2,7 @@ import json
 import os
 import re
 from datetime import datetime, date, timedelta
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-import smtplib
-import csv
+
 import psycopg2
 import requests
 from bs4 import BeautifulSoup
@@ -81,33 +78,6 @@ class CommodityScrapper:
         data_arr = self.get_panel_data_baltic(panel)
 
         return data_arr
-
-    @staticmethod
-    def send_email(commodity_name):
-        control = dict(csv.reader(open(f'Data{os.sep}Control.csv')))
-
-        msg = MIMEMultipart()
-        msg['From'] = control['Email SMTP ID']
-        msg['To'] = control['Email TO Email ID']
-        msg['Subject'] = 'Error report: Commodity {0} Not found in commodity_impact Table'.format(commodity_name)
-        msg.attach(MIMEText('Febooti Automation Workshop v4.1.1', 'html'))
-        txt = msg.as_string()
-        try:
-            if control['Require logon using Secure Password Authentication (SPA)'].lower() == 'no':
-                server = str(control['Email SMTP Server Name / IP Address']) + ":" + str(
-                    control['Email SMTP Server Port'])
-                s = smtplib.SMTP(server)
-            else:
-                s = smtplib.SMTP(control['Email SMTP Server Name / IP Address'], int(control['Email SMTP Server Port']))
-                s.starttls()
-
-            s.login(control['Email SMTP ID'], control['Email SMTP Password'])
-            s.sendmail(control['Email SMTP ID'], control['Email TO Email ID'], txt)
-            s.quit()
-            print('Sent mail')
-        except smtplib.SMTPException as e:
-            print(e)
-            print("Email couldn't be sent")
 
     def scrap_commodities_baltic_api(self):
         html = requests.get("https://finance-api.seekingalpha.com/real_time_quotes?sa_ids=601301")
@@ -202,10 +172,10 @@ class CommodityScrapper:
 
         df['update_date'] = date.today()
         df['update_time'] = datetime.now().time()
-        df['price'] = row['last']
+        df['price'] = row['close']
         df['last_price'] = row['prev_close']
         df['last_percent'] = (df['price'] - df['last_price']) / df['last_price']
-        df['change'] = row['last'] - row['prev_close']
+        df['change'] = df['price'] - row['last']
         df['day_percent'] = round((df['price'] - df['last_price']) / df['last_price'], 4)
 
         if week_close is not None:
@@ -240,20 +210,6 @@ class CommodityScrapper:
                 return rst[0]
         except Exception as e:
             print("error found in get_price_by_updated_date()")
-            print(e)
-        return None
-
-    def is_exists_by_commodity_name_and_updated_date_is_today(self, name):
-        update_date = datetime.today().strftime('%Y-%m-%d')
-        sql = "select * from commodities where commodity_name = '{0}' and update_date = '{1}'".format(name, update_date)
-        curr = self.conn.cursor()
-        try:
-            curr.execute(sql)
-            rst = curr.fetchone()
-            if rst is not None:
-                return rst
-        except Exception as e:
-            print("error found in is_exists_by_commodity_name_and_updated_date_is_today()")
             print(e)
         return None
 
@@ -334,7 +290,7 @@ class CommodityScrapper:
                 %(data_date)s,
                 %(last_price)s
             )
-            on conflict (commodity_name, update_date, update_time) do update
+            on conflict (commodity_name, update_date) do update
             set
                 update_time = excluded.update_time,
                 price = excluded.price,
@@ -352,39 +308,12 @@ class CommodityScrapper:
         curr = self.conn.cursor()
         count = 0
         for row in data_arr:
+            print(row)
             try:
-                print("=========================================================================================")
                 # q =  curr.mogrify(query,column_values)
-                # curr.execute(sql, row)
-                commodities_impact = self.get_record_price_change_by_commodity_name(row['commodity_name'])
-                if commodities_impact is not None:
-                    print('{0} is found in commodities_impact table!'.format(row['commodity_name']))
-                    record = self.is_exists_by_commodity_name_and_updated_date_is_today(row['commodity_name'])
-                    if record is not None:
-                        print('{0} is already found in commodities table with update_date as today!'.format(row['commodity_name']))
-                        if commodities_impact[12] and float(record[3]) != row['price']:
-                            print("commodities_impact.record_price_change is TRUE and prices are not equals")
-                            curr.execute(sql, row)
-                            print('Inserted a new record : {0}'.format(row))
-                            count += 1
-                        else:
-                            print("commodities_impact.record_price_change is FALSE")
-                            self.delete_record(record[0], record[1], record[2])
-                            print("Deleted the record with commodity name: {0}, update_time: {2}, update_date: {1}".format(record[0], record[1], record[2]))
-                            curr.execute(sql, row)
-                            self.conn.commit()
-                            print('Inserted a new record: {0}'.format(row))
-                            count += 1
-                    else:
-                        print('{0} is not found in commodities table with update_date as today!'.format(row['commodity_name']))
-                        curr.execute(sql, row)
-                        self.conn.commit()
-                        print('Inserted a new record {0}'.format(row))
-                        count += 1
-                else:
-                    print('{0} not found in commodities_impact table! Sending Email!'.format(row['commodity_name']))
-                    self.send_email(row['commodity_name'])
-
+                # print(row)
+                curr.execute(sql, row)
+                count = count + 1
             except Exception as e:
                 print("error found")
                 print(e)
@@ -426,31 +355,6 @@ class CommodityScrapper:
 
     def __del__(self):
         self.conn.close()
-
-    def get_record_price_change_by_commodity_name(self, commodity_name):
-        sql = "select * from commodities_impact where commodity_name like '{0}'".format(commodity_name)
-        curr = self.conn.cursor()
-        try:
-            curr.execute(sql)
-            rst = curr.fetchone()
-            if rst is not None:
-                return rst
-        except Exception as e:
-            print("error in get_record_price_change_by_commodity_name()")
-            print(e)
-        return None
-
-    def delete_record(self, name, update_date, update_time):
-        sql = "delete from commodities where commodity_name = '{0}' and update_date = '{1}' and update_time = '{2}'".format(
-            name, update_date, update_time)
-        curr = self.conn.cursor()
-        try:
-            curr.execute(sql)
-            self.conn.commit()
-        except Exception as e:
-            print("error in get_record_price_change_by_commodity_name()")
-            print(e)
-        return None
 
 
 scrapper = CommodityScrapper()
