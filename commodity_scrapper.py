@@ -115,8 +115,8 @@ class CommodityScrapper:
         data_arr = []
         for record in json_['real_time_quotes']:
             df = self.get_row_value_baltic_api(record)
-            if not self.is_exists(df):
-                data_arr.append(df)
+            # if not self.is_exists(df):
+            data_arr.append(df)
         return data_arr
 
     def get_panel_data(self, panel):
@@ -127,8 +127,8 @@ class CommodityScrapper:
         for row in rows:
             df = self.get_row_value(row)
             if df is not None:
-                if not self.is_exists(df):
-                    data_arr.append(df)
+                # if not self.is_exists(df):
+                data_arr.append(df)
         return data_arr
 
     def get_panel_data_baltic(self, panel):
@@ -137,8 +137,8 @@ class CommodityScrapper:
         for row in rows:
             df = self.get_row_value_baltic(row)
             if df is not None:
-                if not self.is_exists(df):
-                    data_arr.append(df)
+                # if not self.is_exists(df):
+                data_arr.append(df)
         return data_arr
 
     def get_row_value(self, row):
@@ -353,7 +353,7 @@ class CommodityScrapper:
         count = 0
         for row in data_arr:
             try:
-                print("=========================================================================================")
+                print("=========================================={0}===============================================".format(row['commodity_name']))
                 # q =  curr.mogrify(query,column_values)
                 # curr.execute(sql, row)
                 commodities_impact = self.get_record_price_change_by_commodity_name(row['commodity_name'])
@@ -362,7 +362,7 @@ class CommodityScrapper:
                     record = self.is_exists_by_commodity_name_and_updated_date_is_today(row['commodity_name'])
                     if record is not None:
                         print('{0} is already found in commodities table with update_date as today!'.format(row['commodity_name']))
-                        if commodities_impact[12] and float(record[3]) != row['price']:
+                        if commodities_impact[12] and float(record[3]) != round(row['price'], 2):
                             print("commodities_impact.record_price_change is TRUE and prices are not equals")
                             curr.execute(sql, row)
                             print('Inserted a new record : {0}'.format(row))
