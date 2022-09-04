@@ -384,6 +384,7 @@ class CommodityScrapper:
                 else:
                     print('{0} not found in commodities_impact table! Sending Email!'.format(row['commodity_name']))
                     self.send_email(row['commodity_name'])
+                    self.add_default_row_to_commodities_impact(row['commodity_name'])
 
             except Exception as e:
                 print("error found")
@@ -451,6 +452,17 @@ class CommodityScrapper:
             print("error in get_record_price_change_by_commodity_name()")
             print(e)
         return None
+
+    def add_default_row_to_commodities_impact(self, param):
+        sql = "insert into commodities_impact(commodity_name, record_price_change) values ('{0}', false)".format(param)
+        curr = self.conn.cursor()
+        try:
+            curr.execute(sql)
+            self.conn.commit()
+            print('Inserted a new commodity:{0} to commodities_impact table'.format(param))
+        except Exception as e:
+            print("error in add_default_row_to_commodities_impact()")
+            print(e)
 
 
 scrapper = CommodityScrapper()
