@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import time
 from datetime import datetime, date, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -245,7 +246,7 @@ class CommodityScrapper:
 
     def is_exists_by_commodity_name_and_updated_date_is_today(self, name):
         update_date = datetime.today().strftime('%Y-%m-%d')
-        sql = "select * from commodities where commodity_name = '{0}' and update_date = '{1}'".format(name, update_date)
+        sql = "select * from commodities where commodity_name = '{0}' and update_date = '{1}' order by update_time desc".format(name, update_date)
         curr = self.conn.cursor()
         try:
             curr.execute(sql)
@@ -465,4 +466,10 @@ class CommodityScrapper:
             print(e)
 
 
-scrapper = CommodityScrapper()
+# scrapper = CommodityScrapper()
+
+while True:
+    scrapper = CommodityScrapper()
+    time.sleep(60 * 5)
+
+
