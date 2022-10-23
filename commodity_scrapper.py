@@ -363,21 +363,20 @@ class CommodityScrapper:
                     record = self.is_exists_by_commodity_name_and_updated_date_is_today(row['commodity_name'])
                     if record is not None:
                         print('{0} is already found in commodities table with update_date as today!'.format(row['commodity_name']))
-                        if commodities_impact[12] and float(record[3]) != round(row['price'], 2):
+                        if bool(commodities_impact[12]) is True and float(record[3]) != round(row['price'], 2):
                             print("commodities_impact.record_price_change is TRUE and prices are not equal")
                             curr.execute(sql, row)
                             print('Inserted a new record : {0}'.format(row))
                             count += 1
-                        elif float(record[3]) == round(row['price'], 2):
-                            print("Prices are equal")
-                        else:
-                            print("commodities_impact.record_price_change is FALSE")
-                            # self.delete_record(record[0], record[1], record[2])
-                            # print("Deleted the record with commodity name: {0}, update_time: {2}, update_date: {1}".format(record[0], record[1], record[2]))
-                            # curr.execute(sql, row)
-                            # self.conn.commit()
-                            # print('Inserted a new record: {0}'.format(row))
-                            # count += 1
+                        elif bool(commodities_impact[12]) is False and float(record[3]) != round(row['price'], 2):
+                            print("commodities_impact.record_price_change is FALSE and prices are not equal")
+                            self.delete_record(record[0], record[1], record[2])
+                            print("Deleted the record with commodity name: {0}, update_time: {2}, update_date: {1}".format(record[0], record[1], record[2]))
+                            curr.execute(sql, row)
+                            self.conn.commit()
+                            print('Inserted a new record: {0}'.format(row))
+                            count += 1
+
                     else:
                         print('{0} is not found in commodities table with update_date as today!'.format(row['commodity_name']))
                         curr.execute(sql, row)
